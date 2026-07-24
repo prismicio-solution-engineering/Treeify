@@ -1,65 +1,155 @@
 :root {
-  --bg: #0d1117;
-  --panel: #161b22;
-  --panel-2: #1c2230;
-  --border: #2a3240;
-  --text: #e6edf3;
-  --muted: #8b949e;
-  --accent: #6ea8fe;
-  --accent-2: #7ee787;
-  --root: #f0b429;
-  --line: #30363d;
-  --danger: #ff7b72;
+  color-scheme: dark;
 
-  /* level accent ramp (sequential) */
-  --l0: #f0b429;
-  --l1: #6ea8fe;
-  --l2: #7ee787;
-  --l3: #d2a8ff;
-  --l4: #ff9bce;
-  --l5: #79c0ff;
+  --bg: #151619;
+  --surface: #191a1e;
+  --text: #e7e7ea;
+  --text-2: #9b9da3;
+  --muted: #6a6c73;
+  --border: rgba(255, 255, 255, 0.09);
+  --divider: rgba(255, 255, 255, 0.06);
+  --hover: rgba(255, 255, 255, 0.04);
+  --accent: #8ba0d6;
+  --accent-soft: rgba(139, 160, 214, 0.14);
+  --rail: rgba(255, 255, 255, 0.16);
+  --green: #4fa972;
+  --green-soft: rgba(79, 169, 114, 0.14);
+  /* meaning colours — reserved for anomalies / integrity, never decoration */
+  --warn: #e0a53c;
+  --warn-soft: rgba(224, 165, 60, 0.16);
+  --danger: #e5837a;
+
+  /* Categorical palette — a calm warm→cool ramp. Assigned to document types
+     in depth order, so colour also reads as depth. */
+  --c0: #d98c5f;
+  --c1: #d2b15c;
+  --c2: #7fb283;
+  --c3: #5faea8;
+  --c4: #6e9bd6;
+  --c5: #8e8ed6;
+  --c6: #b084c9;
+  --c7: #cc7ea0;
+
+  --radius: 4px;
+  --space: 8px;
 }
 
-* { box-sizing: border-box; }
-html, body { margin: 0; padding: 0; }
+@media (prefers-color-scheme: light) {
+  :root {
+    color-scheme: light;
+
+    --bg: #fbfbfa;
+    --surface: #ffffff;
+    --text: #1b1c1f;
+    --text-2: #55575e;
+    --muted: #8a8c93;
+    --border: rgba(0, 0, 0, 0.11);
+    --divider: rgba(0, 0, 0, 0.07);
+    --hover: rgba(0, 0, 0, 0.035);
+    --accent: #4c5e9c;
+    --accent-soft: rgba(76, 94, 156, 0.1);
+    --rail: rgba(0, 0, 0, 0.16);
+    --green: #2f8a52;
+    --green-soft: rgba(47, 138, 82, 0.1);
+    --warn: #b9791f;
+    --warn-soft: rgba(185, 121, 31, 0.13);
+    --danger: #c0483d;
+
+    /* deeper variants so type colours keep contrast on a light background */
+    --c0: #b96a3d;
+    --c1: #a2852f;
+    --c2: #4e8f5c;
+    --c3: #358a83;
+    --c4: #3f6fae;
+    --c5: #5f5fb4;
+    --c6: #8a52a8;
+    --c7: #a8527a;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
 
 body {
   background: var(--bg);
   color: var(--text);
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
     Helvetica, Arial, sans-serif;
-  font-size: 14px;
-  line-height: 1.5;
+  font-size: 13.5px;
+  line-height: 1.55;
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
-a { color: var(--accent); text-decoration: none; }
-a:hover { text-decoration: underline; }
+a {
+  color: var(--accent);
+  text-decoration: none;
+}
+a:hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
 
-code, .mono {
+code,
+.mono {
   font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
 }
 
 button {
   font: inherit;
+  font-size: 12.5px;
   cursor: pointer;
   border: 1px solid var(--border);
-  background: var(--panel-2);
-  color: var(--text);
-  border-radius: 6px;
-  padding: 6px 12px;
-  transition: background 0.12s ease, border-color 0.12s ease;
+  background: transparent;
+  color: var(--text-2);
+  border-radius: var(--radius);
+  padding: 5px 11px;
+  transition: background 0.1s ease, color 0.1s ease, border-color 0.1s ease;
 }
-button:hover { background: #232b3a; border-color: #3b465a; }
-button:disabled { opacity: 0.5; cursor: not-allowed; }
+button:hover:not(:disabled) {
+  background: var(--hover);
+  color: var(--text);
+}
+button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
 
-input[type="text"], input:not([type]) {
+button.open-editor {
+  color: var(--green);
+  border-color: color-mix(in srgb, var(--green) 45%, transparent);
+}
+button.open-editor:hover:not(:disabled) {
+  background: var(--green-soft);
+  color: var(--green);
+  border-color: color-mix(in srgb, var(--green) 65%, transparent);
+}
+
+input[type="text"],
+input:not([type]) {
   font: inherit;
-  background: var(--panel);
+  font-size: 13px;
+  background: transparent;
   color: var(--text);
   border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 8px 12px;
+  border-radius: var(--radius);
+  padding: 7px 11px;
   outline: none;
+  transition: border-color 0.1s ease;
 }
-input[type="text"]:focus { border-color: var(--accent); }
+input[type="text"]::placeholder {
+  color: var(--muted);
+}
+input[type="text"]:focus {
+  border-color: var(--accent);
+}
+
+::selection {
+  background: var(--accent-soft);
+}

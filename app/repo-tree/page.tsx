@@ -4,13 +4,6 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import type { RepoTree, TreeNode } from "./types";
 import { TreeRow, type TreeContext } from "./TreeRow";
 
-const LEVEL_VARS = ["--l0", "--l1", "--l2", "--l3", "--l4", "--l5"];
-
-function levelColor(level: number | null): string {
-  if (level === null) return "#5a6472";
-  return `var(${LEVEL_VARS[level % LEVEL_VARS.length]})`;
-}
-
 export default function RepoTreePage() {
   const [data, setData] = useState<RepoTree | null>(null);
   const [loading, setLoading] = useState(true);
@@ -20,6 +13,8 @@ export default function RepoTreePage() {
   const [search, setSearch] = useState("");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const load = useCallback(async (method: "GET" | "POST") => {
     method === "POST" ? setRefreshing(true) : setLoading(true);
@@ -29,15 +24,13 @@ export default function RepoTreePage() {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Request failed");
       setData(json);
-      // expand root + its direct children by default
-      if (json.rootId) {
-        const root: TreeNode | undefined = json.nodes.find(
-          (n: TreeNode) => n.id === json.rootId
-        );
-        const next = new Set<string>([json.rootId]);
-        root?.children.forEach((c: { id: string }) => next.add(c.id));
-        setExpanded(next);
-      }
+      // Default to a full, readable canvas: expand the first three levels.
+      const next = new Set<string>();
+      json.nodes.forEach((n: TreeNode) => {
+        if (n.level !== null && n.level <= 2) next.add(n.id);
+      });
+      if (json.rootId) next.add(json.rootId);
+      setExpanded(next);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unknown error");
     } finally {
@@ -56,7 +49,59 @@ export default function RepoTreePage() {
     return m;
   }, [data]);
 
-  // Search: match id/uid/title/type; auto-expand each match's shortest path.
+  // Type → colour, assigned in depth order (root type warmest). This is the
+  // ONLY type cue on a row (a slim tick); the word shows only in the panel.
+  const PALETTE = [
+    "var(--c0)",
+    "var(--c1)",
+    "var(--c2)",
+    "var(--c3)",
+    "var(--c4)",
+    "var(--c5)",
+    "var(--c6)",
+    "var(--c7)",
+  ];
+  const typeColor = useMemo(() => {
+    if (!data) return (_: string) => "var(--muted)";
+    const minLevel = new Map<string, number>();
+    for (const n of data.nodes) {
+      const lvl = n.level ?? 99;
+      if (!minLevel.has(n.type) || lvl < minLevel.get(n.type)!)
+        minLevel.set(n.type, lvl);
+    }
+    const order = [...minLevel.keys()].sort(
+      (a, b) => minLevel.get(a)! - minLevel.get(b)! || a.localeCompare(b)
+    );
+    const map: Record<string, string> = {};
+    order.forEach((t, i) => (map[t] = PALETTE[i % PALETTE.length]));
+    return (t: string) => map[t] ?? "var(--muted)";
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data]);
+
+  // Descendant count per node (unique docs in the subtree), cycle-safe.
+  const subtreeSize = useMemo(() => {
+    const memo = new Map<string, number>();
+    const compute = (id: string, seen: Set<string>): Set<string> => {
+      const acc = new Set<string>();
+      const node = nodesById.get(id);
+      if (!node) return acc;
+      for (const c of node.children) {
+        if (seen.has(c.id)) continue;
+        acc.add(c.id);
+        const next = new Set(seen);
+        next.add(c.id);
+        compute(c.id, next).forEach((x) => acc.add(x));
+      }
+      return acc;
+    };
+    return (id: string) => {
+      if (memo.has(id)) return memo.get(id)!;
+      const n = compute(id, new Set([id])).size;
+      memo.set(id, n);
+      return n;
+    };
+  }, [nodesById]);
+
   const term = search.trim().toLowerCase();
   const matchedIds = useMemo(() => {
     const s = new Set<string>();
@@ -104,9 +149,21 @@ export default function RepoTreePage() {
       select: setSelectedId,
       selectedId,
       matchedIds,
-      levelColor,
+      hoveredId,
+      onHover: setHoveredId,
+      typeColor,
+      subtreeSize,
     }),
-    [nodesById, isExpanded, toggle, selectedId, matchedIds]
+    [
+      nodesById,
+      isExpanded,
+      toggle,
+      selectedId,
+      matchedIds,
+      hoveredId,
+      typeColor,
+      subtreeSize,
+    ]
   );
 
   const orphans = useMemo(
@@ -180,42 +237,102 @@ export default function RepoTreePage() {
     download("repoTree.csv", rows.join("\n"), "text/csv");
   };
 
+  type Metric = {
+    label: string;
+    value: React.ReactNode;
+    tone?: "accent" | "warn" | "danger";
+    on?: boolean;
+  };
+  const metrics: Metric[] = data
+    ? [
+        { label: "documents", value: data.stats.documentCount },
+        { label: "relationships", value: data.stats.edgeCount },
+        { label: "max depth", value: data.stats.maxLevel },
+        {
+          label: "shared",
+          value: data.stats.multiParentCount,
+          tone: "accent",
+          on: data.stats.multiParentCount > 0,
+        },
+        {
+          label: "orphans",
+          value: data.stats.orphanCount,
+          tone: "warn",
+          on: data.stats.orphanCount > 0,
+        },
+        {
+          label: "broken links",
+          value: data.stats.brokenLinkCount,
+          tone: "danger",
+          on: data.stats.brokenLinkCount > 0,
+        },
+      ]
+    : [];
+
+  const metricStyle = (m: Metric) => {
+    if (!m.tone) return { value: "var(--text)", weight: 550, label: "var(--muted)" };
+    if (!m.on) return { value: "var(--muted)", weight: 450, label: "var(--muted)" };
+    const c =
+      m.tone === "accent"
+        ? "var(--accent)"
+        : m.tone === "danger"
+        ? "var(--danger)"
+        : "var(--warn)";
+    return { value: c, weight: 700, label: c };
+  };
+
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <main style={{ maxWidth: 1200, margin: "0 auto", padding: "24px" }}>
+    <main style={{ maxWidth: 1180, margin: "0 auto", padding: "40px 28px 64px" }}>
       <header
         style={{
           display: "flex",
-          alignItems: "baseline",
+          alignItems: "flex-end",
           justifyContent: "space-between",
-          gap: 16,
+          gap: 24,
           flexWrap: "wrap",
         }}
       >
         <div>
-          <h1 style={{ fontSize: 22, margin: 0 }}>🌳 Repo Tree</h1>
-          <p style={{ color: "var(--muted)", margin: "4px 0 0" }}>
+          <h1
+            style={{
+              fontSize: 19,
+              fontWeight: 600,
+              letterSpacing: "-0.01em",
+              margin: 0,
+              color: "var(--text)",
+            }}
+          >
+            Repo Tree
+          </h1>
+          <p style={{ color: "var(--text-2)", margin: "6px 0 0", fontSize: 13 }}>
             Content Relationship hierarchy
-            {data ? (
-              <>
-                {" "}
-                for <code>{data.repositoryName}</code> ·{" "}
-                <span title="This is a point-in-time snapshot, not live.">
-                  snapshot {new Date(data.generatedAt).toLocaleString()}
-                </span>
-              </>
-            ) : null}
           </p>
+          {data && (
+            <p
+              className="mono"
+              style={{
+                color: "var(--muted)",
+                opacity: 0.6,
+                margin: "5px 0 0",
+                fontSize: 10.5,
+              }}
+              title="Point-in-time snapshot, not live."
+            >
+              {data.repositoryName} · snapshot{" "}
+              {new Date(data.generatedAt).toLocaleString()}
+            </p>
+          )}
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <button onClick={() => load("POST")} disabled={refreshing || loading}>
-            {refreshing ? "↻ Refreshing…" : "↻ Refresh"}
+            {refreshing ? "Refreshing…" : "Refresh"}
           </button>
           <button onClick={exportCSV} disabled={!data}>
-            ⭳ CSV
+            Export CSV
           </button>
           <button onClick={exportJSON} disabled={!data}>
-            ⭳ JSON
+            Export JSON
           </button>
         </div>
       </header>
@@ -223,12 +340,11 @@ export default function RepoTreePage() {
       {error && (
         <div
           style={{
-            marginTop: 16,
-            padding: 12,
-            border: "1px solid var(--danger)",
-            borderRadius: 8,
-            color: "var(--danger)",
-            background: "rgba(255,123,114,0.08)",
+            marginTop: 24,
+            padding: "10px 14px",
+            border: "1px solid var(--border)",
+            borderRadius: "var(--radius)",
+            color: "var(--text)",
           }}
         >
           {error}
@@ -236,62 +352,56 @@ export default function RepoTreePage() {
       )}
 
       {data && (
-        <section
+        <div
           style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))",
-            gap: 10,
-            marginTop: 16,
+            display: "flex",
+            flexWrap: "wrap",
+            gap: "8px 22px",
+            margin: "24px 0",
+            padding: "12px 0",
+            borderTop: "1px solid var(--divider)",
+            borderBottom: "1px solid var(--divider)",
+            fontSize: 12.5,
           }}
         >
-          {[
-            ["Documents", data.stats.documentCount],
-            ["Edges", data.stats.edgeCount],
-            ["Max depth", data.stats.maxLevel],
-            ["Shared (multi-parent)", data.stats.multiParentCount],
-            ["Orphans", data.stats.orphanCount],
-            ["Broken links", data.stats.brokenLinkCount],
-            ["Cyclic", data.stats.cyclic ? "yes" : "no"],
-          ].map(([label, value]) => (
-            <div
-              key={String(label)}
-              style={{
-                background: "var(--panel)",
-                border: "1px solid var(--border)",
-                borderRadius: 8,
-                padding: "10px 12px",
-              }}
-            >
-              <div style={{ fontSize: 20, fontWeight: 700 }}>{value}</div>
-              <div style={{ fontSize: 11, color: "var(--muted)" }}>{label}</div>
-            </div>
-          ))}
-        </section>
+          {metrics.map((m, i) => {
+            const s = metricStyle(m);
+            return (
+              <span
+                key={m.label}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "baseline",
+                  gap: 6,
+                  paddingLeft: i === 0 ? 0 : 22,
+                  borderLeft: i === 0 ? "none" : "1px solid var(--divider)",
+                }}
+              >
+                <span style={{ color: s.value, fontWeight: s.weight }}>
+                  {m.value}
+                </span>
+                <span style={{ color: s.label }}>{m.label}</span>
+              </span>
+            );
+          })}
+        </div>
       )}
 
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "minmax(0,1fr) 340px",
-          gap: 16,
-          marginTop: 16,
+          gridTemplateColumns: "minmax(0,1fr) 320px",
+          gap: 32,
+          marginTop: data ? 0 : 24,
           alignItems: "start",
         }}
       >
-        {/* Tree panel */}
-        <div
-          style={{
-            background: "var(--panel)",
-            border: "1px solid var(--border)",
-            borderRadius: 10,
-            padding: 12,
-            minHeight: 300,
-          }}
-        >
-          <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+        {/* Tree */}
+        <div style={{ minWidth: 0 }}>
+          <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
             <input
               type="text"
-              placeholder="Search documents by title, type, uid, or id…"
+              placeholder="Search title, type, uid, or id…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               style={{ flex: 1 }}
@@ -305,50 +415,78 @@ export default function RepoTreePage() {
           </div>
 
           {term && (
-            <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 6 }}>
-              {matchedIds.size} match{matchedIds.size === 1 ? "" : "es"} — branches
+            <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 10 }}>
+              {matchedIds.size} match{matchedIds.size === 1 ? "" : "es"} · branches
               auto-expanded
             </div>
           )}
 
-          {loading && <p style={{ color: "var(--muted)" }}>Analyzing repository…</p>}
+          {loading && (
+            <p style={{ color: "var(--muted)" }}>Analyzing repository…</p>
+          )}
 
           {data && data.rootId ? (
-            <TreeRow
-              id={data.rootId}
-              fieldPath={null}
-              depth={0}
-              ancestors={[]}
-              ctx={ctx}
-            />
+            <div style={{ marginLeft: -8 }}>
+              <TreeRow
+                id={data.rootId}
+                depth={0}
+                lastFlags={[]}
+                ancestors={[]}
+                ctx={ctx}
+              />
+            </div>
           ) : data && !data.rootId ? (
             <p style={{ color: "var(--muted)" }}>
-              No <code>master_config</code> (root) document found. Showing orphans
-              only.
+              No <span className="mono">master_config</span> (root) document found.
+              Showing orphans only.
             </p>
           ) : null}
 
           {orphans.length > 0 && (
-            <details style={{ marginTop: 16 }}>
-              <summary style={{ cursor: "pointer", color: "var(--muted)" }}>
+            <details style={{ marginTop: 24 }}>
+              <summary
+                style={{
+                  cursor: "pointer",
+                  color: "var(--warn)",
+                  fontWeight: 600,
+                  fontSize: 12.5,
+                }}
+              >
                 {orphans.length} document(s) not reachable from root
               </summary>
-              <div style={{ marginTop: 6 }}>
+              <div style={{ marginTop: 8 }}>
                 {orphans.map((n) => (
                   <div
                     key={n.id}
                     onClick={() => setSelectedId(n.id)}
                     style={{
-                      padding: "3px 8px",
+                      padding: "4px 8px",
                       cursor: "pointer",
                       display: "flex",
                       gap: 8,
                       alignItems: "center",
                     }}
                   >
-                    <span style={{ color: "var(--muted)" }}>∅</span>
+                    <span
+                      style={{
+                        flex: "0 0 auto",
+                        width: 7,
+                        height: 7,
+                        borderRadius: "50%",
+                        background: "var(--warn)",
+                      }}
+                    />
                     <span>{n.title}</span>
-                    <span className="mono" style={{ fontSize: 11, color: "var(--muted)" }}>
+                    <span
+                      className="mono"
+                      style={{
+                        fontSize: 10,
+                        letterSpacing: "0.06em",
+                        textTransform: "uppercase",
+                        color: "var(--muted)",
+                        opacity: 0.7,
+                      }}
+                    >
                       {n.type}
                     </span>
                   </div>
@@ -358,79 +496,115 @@ export default function RepoTreePage() {
           )}
         </div>
 
-        {/* Detail panel */}
+        {/* Detail */}
         <aside
           style={{
-            background: "var(--panel)",
-            border: "1px solid var(--border)",
-            borderRadius: 10,
-            padding: 14,
             position: "sticky",
-            top: 16,
+            top: 24,
+            paddingLeft: 24,
+            borderLeft: "1px solid var(--divider)",
+            minHeight: 200,
           }}
         >
           {!selected ? (
-            <p style={{ color: "var(--muted)", margin: 0 }}>
-              Select a node to see its type, level, parents, and the field paths
-              linking it.
+            <p style={{ color: "var(--muted)", margin: 0, fontSize: 12.5 }}>
+              Select a node to see its role, where it sits, and what links to it.
             </p>
           ) : (
             <div>
-              <h2 style={{ fontSize: 16, margin: "0 0 4px" }}>{selected.title}</h2>
-              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
-                <Badge>type: {selected.type}</Badge>
-                <Badge>
-                  level: {selected.level === null ? "unreachable" : selected.level}
-                </Badge>
-                {selected.uid && <Badge>uid: {selected.uid}</Badge>}
+              <h2
+                style={{
+                  fontSize: 15,
+                  fontWeight: 600,
+                  margin: "0 0 6px",
+                  color: "var(--text)",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 9,
+                }}
+              >
+                <span
+                  style={{
+                    flex: "0 0 auto",
+                    width: 3,
+                    height: 15,
+                    borderRadius: 2,
+                    background:
+                      selected.type === "unknown"
+                        ? "var(--danger)"
+                        : typeColor(selected.type),
+                  }}
+                />
+                {selected.title}
+              </h2>
+              <div
+                className="mono"
+                style={{ fontSize: 11.5, color: "var(--muted)", marginBottom: 18 }}
+              >
+                {selected.type} · level{" "}
+                {selected.level === null ? "unreachable" : selected.level}
               </div>
+              {selected.parents.length > 1 && (
+                <div
+                  style={{
+                    fontSize: 12.5,
+                    fontWeight: 650,
+                    color: "var(--accent)",
+                    marginBottom: 18,
+                  }}
+                >
+                  shared · linked from {selected.parents.length} parents
+                </div>
+              )}
 
               <a
                 href={editorUrl(selected.id)}
                 target="_blank"
                 rel="noreferrer"
-                style={{ display: "block", marginBottom: 14 }}
+                style={{ display: "inline-block", marginBottom: 24 }}
               >
-                <button style={{ width: "100%" }}>↗ Open in Prismic editor</button>
+                <button className="open-editor">Open in Prismic editor →</button>
               </a>
 
-              <Section title={`Path from root (${selected.path.length})`}>
-                <div className="mono" style={{ fontSize: 12 }}>
+              <Section title="Path from root">
+                <div className="mono" style={{ fontSize: 12, color: "var(--text-2)" }}>
                   {selected.path.length
                     ? selected.path
                         .map((pid) => nodesById.get(pid)?.title ?? pid)
                         .join(" › ")
-                    : "— not reachable from root —"}
+                    : "not reachable from root"}
                 </div>
               </Section>
 
-              <Section title={`Parents (${selected.parents.length})`}>
+              <Section title={`Parents · ${selected.parents.length}`}>
                 {selected.parents.length === 0 ? (
-                  <em style={{ color: "var(--muted)" }}>none (root or orphan)</em>
+                  <span style={{ color: "var(--muted)" }}>none (root or orphan)</span>
                 ) : (
                   selected.parents.map((p, i) => (
-                    <div key={i} style={{ marginBottom: 6 }}>
-                      <a onClick={() => setSelectedId(p.id)} style={{ cursor: "pointer" }}>
+                    <div key={i} style={{ marginBottom: 5 }}>
+                      <a
+                        onClick={() => setSelectedId(p.id)}
+                        title={`linked via ${p.fieldPath}`}
+                        style={{ cursor: "pointer" }}
+                      >
                         {nodesById.get(p.id)?.title ?? p.id}
                       </a>
-                      <div
-                        className="mono"
-                        style={{ fontSize: 11, color: "var(--muted)" }}
-                      >
-                        via {p.fieldPath}
-                      </div>
                     </div>
                   ))
                 )}
               </Section>
 
-              <Section title={`Children (${selected.children.length})`}>
+              <Section title={`Children · ${selected.children.length}`}>
                 {selected.children.length === 0 ? (
-                  <em style={{ color: "var(--muted)" }}>none (leaf)</em>
+                  <span style={{ color: "var(--muted)" }}>none (leaf)</span>
                 ) : (
                   selected.children.map((c, i) => (
-                    <div key={i}>
-                      <a onClick={() => setSelectedId(c.id)} style={{ cursor: "pointer" }}>
+                    <div key={i} style={{ marginBottom: 5 }}>
+                      <a
+                        onClick={() => setSelectedId(c.id)}
+                        title={`linked via ${c.fieldPath}`}
+                        style={{ cursor: "pointer" }}
+                      >
                         {nodesById.get(c.id)?.title ?? c.id}
                       </a>
                     </div>
@@ -438,11 +612,19 @@ export default function RepoTreePage() {
                 )}
               </Section>
 
-              <Section title="Document id">
-                <div className="mono" style={{ fontSize: 11, color: "var(--muted)" }}>
-                  {selected.id}
-                </div>
-              </Section>
+              <button
+                onClick={() => {
+                  navigator.clipboard?.writeText(selected.id);
+                  setCopied(true);
+                  window.setTimeout(() => setCopied(false), 1200);
+                }}
+                title={`id ${selected.id}${
+                  selected.uid ? ` · uid ${selected.uid}` : ""
+                }`}
+                style={{ fontSize: 11, color: "var(--muted)", padding: "3px 9px" }}
+              >
+                {copied ? "Copied" : "Copy ID"}
+              </button>
             </div>
           )}
         </aside>
@@ -451,33 +633,16 @@ export default function RepoTreePage() {
   );
 }
 
-function Badge({ children }: { children: React.ReactNode }) {
-  return (
-    <span
-      className="mono"
-      style={{
-        fontSize: 11,
-        border: "1px solid var(--border)",
-        borderRadius: 4,
-        padding: "1px 6px",
-        color: "var(--muted)",
-      }}
-    >
-      {children}
-    </span>
-  );
-}
-
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div style={{ marginBottom: 14 }}>
+    <div style={{ marginBottom: 22 }}>
       <div
         style={{
-          fontSize: 11,
+          fontSize: 10.5,
           textTransform: "uppercase",
-          letterSpacing: 0.5,
+          letterSpacing: "0.07em",
           color: "var(--muted)",
-          marginBottom: 4,
+          marginBottom: 8,
         }}
       >
         {title}
