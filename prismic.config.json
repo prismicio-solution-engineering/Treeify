@@ -1,0 +1,21 @@
+{
+  "repositoryName": "61dffe60",
+  "routes": [
+    {
+      "type": "component",
+      "path": "/component/:uid"
+    },
+    {
+      "type": "section",
+      "path": "/section/:uid"
+    },
+    {
+      "type": "view",
+      "path": "/view/:uid"
+    },
+    {
+      "type": "view_config",
+      "path": "/view-config/:uid"
+    }
+  ]
+}

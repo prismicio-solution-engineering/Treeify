@@ -1,0 +1,35 @@
+{
+  "id": "main_config",
+  "label": "Main Config",
+  "repeatable": false,
+  "status": true,
+  "format": "custom",
+  "json": {
+    "Main": {
+      "title": {
+        "type": "Text",
+        "config": {
+          "label": "Title"
+        }
+      },
+      "sections": {
+        "type": "Group",
+        "config": {
+          "label": "Sections",
+          "fields": {
+            "section": {
+              "type": "Link",
+              "config": {
+                "label": "Section",
+                "select": "document",
+                "customtypes": [
+                  "section"
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

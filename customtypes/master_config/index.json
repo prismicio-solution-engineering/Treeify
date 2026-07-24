@@ -1,0 +1,45 @@
+{
+  "id": "master_config",
+  "label": "Master Config",
+  "repeatable": false,
+  "status": true,
+  "format": "custom",
+  "json": {
+    "Main": {
+      "title": {
+        "type": "Text",
+        "config": {
+          "label": "Title"
+        }
+      },
+      "main": {
+        "type": "Link",
+        "config": {
+          "label": "Main (root child)",
+          "select": "document",
+          "customtypes": [
+            "main_config"
+          ]
+        }
+      },
+      "global_components": {
+        "type": "Group",
+        "config": {
+          "label": "Global Components",
+          "fields": {
+            "component": {
+              "type": "Link",
+              "config": {
+                "label": "Component",
+                "select": "document",
+                "customtypes": [
+                  "component"
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

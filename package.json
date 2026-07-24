@@ -1,0 +1,33 @@
+{
+  "name": "prismic-repo-tree",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Treeify — visualize a Prismic repository's Content Relationship hierarchy as an interactive tree.",
+  "scripts": {
+    "tree-analysis": "npx tsx scripts/buildRepoTree.ts",
+    "predev": "npm run tree-analysis || echo \"skip analysis\"",
+    "dev": "next dev",
+    "dev:no-analysis": "next dev",
+    "build": "npm run tree-analysis && next build",
+    "start": "next start",
+    "lint": "next lint",
+    "slicemachine": "start-slicemachine",
+    "prismic": "prismic"
+  },
+  "dependencies": {
+    "@prismicio/client": "^7.21.8",
+    "next": "15.5.4",
+    "react": "19.2.0",
+    "react-dom": "19.2.0"
+  },
+  "devDependencies": {
+    "@slicemachine/adapter-next": "^0.3.86",
+    "@types/node": "^20.12.7",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "prismic": "1.13.0",
+    "slice-machine-ui": "^2.19.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3"
+  }
+}

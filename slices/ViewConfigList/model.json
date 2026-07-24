@@ -1,0 +1,35 @@
+{
+  "id": "view_config_list",
+  "name": "View Config List",
+  "type": "SharedSlice",
+  "variations": [
+    {
+      "id": "default",
+      "name": "Default",
+      "description": "Default",
+      "docURL": "",
+      "imageUrl": "",
+      "version": "",
+      "primary": {
+        "items": {
+          "type": "Group",
+          "config": {
+            "label": "View Configs",
+            "fields": {
+              "view_config": {
+                "type": "Link",
+                "config": {
+                  "label": "View Config",
+                  "select": "document",
+                  "customtypes": [
+                    "view_config"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

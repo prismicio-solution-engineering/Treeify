@@ -1,0 +1,35 @@
+{
+  "id": "component_grid",
+  "name": "Component Grid",
+  "type": "SharedSlice",
+  "variations": [
+    {
+      "id": "default",
+      "name": "Default",
+      "description": "Default",
+      "docURL": "",
+      "imageUrl": "",
+      "version": "",
+      "primary": {
+        "items": {
+          "type": "Group",
+          "config": {
+            "label": "Components",
+            "fields": {
+              "component": {
+                "type": "Link",
+                "config": {
+                  "label": "Component",
+                  "select": "document",
+                  "customtypes": [
+                    "component"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

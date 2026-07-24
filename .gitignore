@@ -1,0 +1,14 @@
+/node_modules
+/.next
+/out
+/build
+next-env.d.ts
+*.tsbuildinfo
+.DS_Store
+*.pem
+npm-debug.log*
+.env
+.env*.local
+
+# Generated snapshot (safe to commit if you want a checked-in example; ignored by default)
+/artifacts/repoTree.json
