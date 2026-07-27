@@ -18,6 +18,9 @@
   --warn: #e0a53c;
   --warn-soft: rgba(224, 165, 60, 0.16);
   --danger: #e5837a;
+  /* relations: parents (up / source) warm, children (down / growth) green */
+  --parent: #e0955c;
+  --child: #5fae7f;
 
   /* Categorical palette — a calm warm→cool ramp. Assigned to document types
      in depth order, so colour also reads as depth. */
@@ -54,6 +57,8 @@
     --warn: #b9791f;
     --warn-soft: rgba(185, 121, 31, 0.13);
     --danger: #c0483d;
+    --parent: #b56a30;
+    --child: #3f8a5c;
 
     /* deeper variants so type colours keep contrast on a light background */
     --c0: #b96a3d;

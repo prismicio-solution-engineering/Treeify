@@ -414,6 +414,41 @@ export default function RepoTreePage() {
             </button>
           </div>
 
+          {data && (
+            <div
+              style={{
+                display: "flex",
+                gap: 14,
+                marginBottom: 12,
+                fontSize: 11,
+                color: "var(--muted)",
+              }}
+            >
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                <span
+                  style={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: 2,
+                    background: "var(--parent)",
+                  }}
+                />
+                parents
+              </span>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                <span
+                  style={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: 2,
+                    background: "var(--child)",
+                  }}
+                />
+                children
+              </span>
+            </div>
+          )}
+
           {term && (
             <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 10 }}>
               {matchedIds.size} match{matchedIds.size === 1 ? "" : "es"} · branches
@@ -549,7 +584,7 @@ export default function RepoTreePage() {
                   style={{
                     fontSize: 12.5,
                     fontWeight: 650,
-                    color: "var(--accent)",
+                    color: "var(--parent)",
                     marginBottom: 18,
                   }}
                 >

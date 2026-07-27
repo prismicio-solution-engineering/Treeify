@@ -73,6 +73,7 @@ export function TreeRow({
   const matched = ctx.matchedIds.has(id);
 
   const parentCount = node.parents.length;
+  const childCount = node.children.length;
   const shared = parentCount > 1;
   const isBroken = node.type === "unknown";
   const size = ctx.subtreeSize(id);
@@ -189,28 +190,57 @@ export function TreeRow({
             </span>
           )}
 
-          {/* reuse intensity — graduated accent, right-aligned column */}
-          {shared && (
+          {/* parents (↑, warm) and children (↓, green), right-aligned column.
+              The parent pill's fill deepens with parent count = reuse. */}
+          {(parentCount > 0 || childCount > 0) && (
             <span
-              title={`shared — linked from ${parentCount} parents`}
               style={{
                 marginLeft: "auto",
                 flex: "0 0 auto",
-                fontSize: 11,
-                fontWeight: 650,
-                fontVariantNumeric: "tabular-nums",
-                color: "var(--text)",
-                background: `color-mix(in srgb, var(--accent) ${reusePct}%, transparent)`,
-                border: `1px solid color-mix(in srgb, var(--accent) ${Math.min(
-                  reusePct + 18,
-                  72
-                )}%, transparent)`,
-                borderRadius: 999,
-                padding: "0 8px",
-                lineHeight: "17px",
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
               }}
             >
-              {parentCount}
+              {parentCount > 0 && (
+                <span
+                  title={`${parentCount} parent${parentCount === 1 ? "" : "s"}`}
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 650,
+                    fontVariantNumeric: "tabular-nums",
+                    color: "var(--text)",
+                    background: `color-mix(in srgb, var(--parent) ${reusePct}%, transparent)`,
+                    border: `1px solid color-mix(in srgb, var(--parent) ${Math.min(
+                      reusePct + 18,
+                      72
+                    )}%, transparent)`,
+                    borderRadius: 999,
+                    padding: "0 7px",
+                    lineHeight: "17px",
+                  }}
+                >
+                  {parentCount}
+                </span>
+              )}
+              {childCount > 0 && (
+                <span
+                  title={`${childCount} child${childCount === 1 ? "" : "ren"}`}
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 650,
+                    fontVariantNumeric: "tabular-nums",
+                    color: "var(--text)",
+                    background: "color-mix(in srgb, var(--child) 20%, transparent)",
+                    border: "1px solid color-mix(in srgb, var(--child) 40%, transparent)",
+                    borderRadius: 999,
+                    padding: "0 7px",
+                    lineHeight: "17px",
+                  }}
+                >
+                  {childCount}
+                </span>
+              )}
             </span>
           )}
         </div>
